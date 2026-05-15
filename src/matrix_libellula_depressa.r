@@ -1,18 +1,10 @@
-##But de ce fichier est de créer la matrice avec toute les données sur les espèces : 
-###############################################################################
-# FULLY COMMENTED SCRIPT
-# COMBINING GBIF + iNaturalist OCCURRENCES
-# WITH DATE FILTERING AND A MAP OF SWITZERLAND
-###############################################################################
+##Goal of this script is to download the occurence data of libellula depressa in Switzerland from GBIF and INaturalist
 
 # =========================
 # 1) PACKAGES
 # =========================
 
-# Install if necessary:
-# install.packages(c("rgbif", "rnaturalearth", "ggplot2", "rinat",
-#                    "raster", "dplyr", "sf"))
-install.packages("rgbif")
+
 library(rgbif)         # access to GBIF data
 library(rnaturalearth) # country maps
 library(ggplot2)       # graphics
@@ -60,7 +52,7 @@ x11()
 ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
   theme_classic()
-
+Sys.sleep(7)
 ###############################################################################
 # 4) DOWNLOAD GBIF DATA
 ###############################################################################
@@ -101,24 +93,25 @@ plot(
 )
 
 # Map showing GBIF occurrences only
-ggplot(data = Switzerland) +
+p_gbif_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = gbif_switzerland,
-    aes(x = decimalLongitude, y = decimalLatitude),
-    size = 3,
-    shape = 21,
-    fill = "darkgreen",
-    color = "black"
-  ) +
+  geom_point(data = gbif_switzerland,
+             aes(x = decimalLongitude, y = decimalLatitude),
+             size = 2.5, shape = 21,
+             fill = "darkgreen", color = "black", alpha = 0.7) +
+  labs(title = "GBIF occurrences of Libellula depressa in Switzerland",
+       x = "Longitude",
+       y = "Latitude") +
   theme_classic()
+
+x11()
+print(p_gbif_map)
+Sys.sleep(7)
 
 ###############################################################################
 # 5) FORMAT GBIF DATA
 ###############################################################################
 
-# Keep only the useful columns
-# eventDate may contain date + time; as.Date() keeps only the date
 data_gbif <- data.frame(
   species   = gbif_switzerland$species,
   latitude  = gbif_switzerland$decimalLatitude,
@@ -136,8 +129,6 @@ str(data_gbif)
 # 6) DOWNLOAD iNaturalist DATA
 ###############################################################################
 
-# Query iNaturalist for the same species in Switzerland
-# place_id = "switzerland" usually works with rinat
 inat_raw <- get_inat_obs(
   query = myspecies,
   place_id = "switzerland"
@@ -148,24 +139,28 @@ head(inat_raw)
 names(inat_raw)
 
 # Map showing iNaturalist occurrences only
-ggplot(data = Switzerland) +
+p_inat_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = inat_raw,
-    aes(x = longitude, y = latitude),
-    size = 3,
-    shape = 21,
-    fill = "darkred",
-    color = "black"
-  ) +
-  theme_classic()
+  geom_point(data = inat_raw,
+             aes(x = longitude, y = latitude),
+             size = 3,
+             shape = 21,
+             fill = "darkred",
+             color = "black",
+             alpha = 0.75) +
+  labs(title = "iNaturalist occurrences of Libellula depressa in Switzerland",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_inat_map)
+Sys.sleep(7)
 
 ###############################################################################
 # 7) FORMAT iNaturalist DATA
 ###############################################################################
 
-# In most rinat versions the observation date is stored in observed_on
-# Convert it to Date format
 data_inat <- data.frame(
   species   = inat_raw$scientific_name,
   latitude  = inat_raw$latitude,
@@ -211,17 +206,23 @@ table(matrix_full_date$source)
 # 10) MAP OF COMBINED DATA
 ###############################################################################
 
-ggplot(data = Switzerland) +
+p_combined_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = matrix_full_date,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 3,
-    shape = 21,
-    color = "black",
-    alpha = 0.8
-  ) +
-  theme_classic()
+  geom_point(data = matrix_full_date,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 3,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Combined occurrences of Libellula depressa in Switzerland",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_combined_map)
+Sys.sleep(7)
 
 ###############################################################################
 # 11) DEFINE A SIMPLE SPATIAL EXTENT
@@ -242,15 +243,23 @@ ext_Switzerland_cut <- as(raster::extent(6, 11, 46, 48), "SpatialPolygons")
 Switzerland_crop <- st_crop(Switzerland, ext_Switzerland_cut)
 
 # Plot cropped map with occurrence points
-ggplot(data = Switzerland_crop) +
-  geom_sf() +
-  geom_point(
-    data = matrix_full,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 4,
-    shape = 23
-  ) +
-  theme_classic()
+p_crop_map <- ggplot(data = Switzerland_crop) +
+  geom_sf(fill = "grey95", color = "black") +
+  geom_point(data = matrix_full,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 3,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Occurrences within the Swiss spatial extent",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_crop_map)
+Sys.sleep(7)
 
 ################################################################################
 ################################################################################
@@ -266,24 +275,56 @@ Switzerland_crop_sf <- st_as_sf(Switzerland_crop)
 cur_data <- matrix_full[as.matrix(st_intersects(data_gbif_sf, Switzerland_crop_sf)),]
 
 # Plot cropped Switzerland map with filtered points
-x11()
-ggplot(data = Switzerland_crop) +
-  geom_sf() +
-  geom_point(
-    data = cur_data,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 4,
-    shape = 23
-  ) +
-  theme_classic()
+p_filtered_map <- ggplot(data = Switzerland_crop) +
+  geom_sf(fill = "grey95", color = "black") +
+  geom_point(data = cur_data,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 3,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Filtered occurrences within Switzerland",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
 
+x11()
+print(p_filtered_map)
+Sys.sleep(7)
+
+##Number of occurences per source type 
+p_source <- ggplot(matrix_full_date, aes(x = source, fill = source)) +
+  geom_bar(color = "black", alpha = 0.8) +
+  labs(title = "Number of occurrences by data source",
+       x = "Data source",
+       y = "Number of occurrences") +
+  theme_classic(base_size = 13) +
+  theme(legend.position = "none")
+
+x11()
+print(p_source)
+Sys.sleep(7)
+
+
+###Distribution of observed occurence during the years 
+matrix_full_date$year_obs <- as.numeric(format(matrix_full_date$date_obs, "%Y"))
+
+p_time <- ggplot(matrix_full_date, aes(x = year_obs, fill = source)) +
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.75) +
+  labs(title = "Temporal distribution of occurrences",
+       x = "Observation year",
+       y = "Number of occurrences",
+       fill = "Source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_time)
+Sys.sleep(7)
 ###############################################################################
 # 14) OPTIONAL SAVE OF THE FINAL TABLE
 ###############################################################################
 
 # Save filtered occurrence table
-write.csv(
-  cur_data,
-  file = "Libellula depressa.csv",
-  row.names = FALSE
-)
+write.csv(cur_data, "data/Libellula_depressa.csv", row.names = FALSE)
+

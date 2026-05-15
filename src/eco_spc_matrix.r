@@ -1,34 +1,6 @@
-###############################################################################
-# ADDING ECOSYSTEM DATA TO SPECIES OCCURRENCE COORDINATES
-# Example workflow:
-# - read an ecosystem raster
-# - crop it to Switzerland
-# - extract ecosystem values at species occurrence points
-# - join the raster values with metadata
-# - visualize the result
-###############################################################################
 
-#------------------------------------------------------------------------------
-# 1) LOAD REQUIRED PACKAGES
-#------------------------------------------------------------------------------
+##The goal of this code is to add the ecosystem data to the occurences coorindates 
 
-# raster: to read and manipulate raster files
-# sf: to handle vector spatial data
-# rnaturalearth: to download country boundaries
-# ggplot2: to create graphs
-install.packages(c(
-  "rgbif",
-  "rinat",
-  "sf",
-  "sp",
-  "raster",
-  "terra",
-  "ggplot2",
-  "dplyr",
-  "rnaturalearth",
-  "elevatr",
-  "rayshader"
-))
 library(raster)
 library(sf)
 library(rnaturalearth)
@@ -38,7 +10,6 @@ library(ggplot2)
 # 2) LOAD THE ECOSYSTEM RASTER
 #------------------------------------------------------------------------------
 
-# Define the path to the GeoTIFF file
 file_path <- "./data/WorldEcosystem.tif"
 
 # Read the raster layer
@@ -48,9 +19,16 @@ ecosystem_raster <- raster(file_path)
 # Display basic information about the raster
 print(ecosystem_raster)
 
-# Optional: plot the full raster
-#plot(ecosystem_raster, main = "Original Ecosystem Raster")
-
+# PLOT OF THE FULL RASTER 
+x11()
+plot(
+  ecosystem_raster,
+  main = "Global ecosystem raster",
+  xlab = "Longitude",
+  ylab = "Latitude",
+  col = terrain.colors(50),
+  axes = TRUE
+)
 #------------------------------------------------------------------------------
 # 3) LOAD THE BOUNDARY OF SWITZERLAND
 #------------------------------------------------------------------------------
@@ -61,9 +39,10 @@ Switzerland <- ne_countries(
   returnclass = "sf",
   country = "Switzerland"
 )
-
+Sys.sleep(7)
 # Plot the country boundary
 plot(st_geometry(Switzerland), main = "Boundary of Switzerland")
+Sys.sleep(7)
 
 #------------------------------------------------------------------------------
 # 4) CROP AND MASK THE RASTER TO SWITZERLAND
@@ -76,23 +55,21 @@ r2 <- crop(ecosystem_raster, extent(Switzerland))
 ecosystem_switzerland <- mask(r2, Switzerland)
 
 # Plot the cropped and masked raster
-plot(ecosystem_switzerland, main = "Ecosystem Raster Restricted to Switzerland")
-
+plot(ecosystem_switzerland, 
+main = "Ecosystem Raster Restricted to Switzerland",
+xlab="Longitude",
+ylab="Latitude",
+axes=TRUE)
+Sys.sleep(7)
 #------------------------------------------------------------------------------
 # 5) CONVERT SPECIES COORDINATES INTO SPATIAL POINTS
 #------------------------------------------------------------------------------
 
-# We assume that matrix_full is a data frame containing at least:
-# - longitude
-# - latitude
-# - species
+
 
 getwd()
 Complete_matrix <- read.csv("data/matrix_mix.csv")
-Complete_matrix
-
-# Example structure:
-#head(matrix_full)
+head(Complete_matrix)
 
 # Convert the coordinate columns into spatial points
 # The CRS used here is WGS84, which is the standard geographic coordinate system
@@ -102,9 +79,31 @@ spatial_points <- SpatialPoints(
 )
 
 # Add the occurrence points on top of the ecosystem map
-plot(ecosystem_switzerland, main = "Species Occurrences on Ecosystem Map")
-plot(spatial_points, add = TRUE, pch = 16, cex = 1.2)
 
+x11()
+plot(ecosystem_switzerland,
+     main = "Species Occurrences on Ecosystem Map",
+     xlab = "Longitude",
+     ylab = "Latitude")
+
+plot(
+  spatial_points,
+  add = TRUE,
+  pch = 16,
+  cex = 0.5,
+  col = ifelse(
+    Complete_matrix$species == "Castor fiber",
+    "#009ACD",
+    "#CD2626"
+  )
+)
+legend(
+  "topright",
+  legend = c("Castor fiber", "Libellula depressa"),
+  col = c("#009ACD", "#CD2626"),
+  pch = 16
+)
+Sys.sleep(7)
 #------------------------------------------------------------------------------
 # 6) EXTRACT ECOSYSTEM VALUES AT EACH OCCURRENCE POINT
 #------------------------------------------------------------------------------
@@ -114,15 +113,29 @@ plot(spatial_points, add = TRUE, pch = 16, cex = 1.2)
 eco_values <- raster::extract(ecosystem_switzerland, spatial_points)
 
 # Check the extracted values
+#Modification of the axes cause x axe wasn't long enough. 
 head(eco_values)
-
+x11()
+hist(eco_values,
+     breaks = 20,
+     col = "lightblue",
+     border = "white",
+     main = "Distribution of Ecosystem Codes",
+     xlab = "Ecosystem code",
+     ylab = "Frequency", 
+     xlim = c(0, max(eco_values, na.rm = TRUE) + 10),
+  axes = FALSE)
+  axis(1, at = seq(0, 200, by = 25))
+axis(2, las = 1)
+box()
+Sys.sleep(7)
 #------------------------------------------------------------------------------
 # 7) ADD THE EXTRACTED ECOSYSTEM VALUES TO THE ORIGINAL DATA FRAME
 #------------------------------------------------------------------------------
 
 # Create a new data frame by adding the extracted ecosystem values
 matrix_full_eco <- data.frame(Complete_matrix, eco_values)
-
+head(matrix_full_eco)
 # Inspect the result
 
 
@@ -171,5 +184,32 @@ p2 <- ggplot(matrix_full_eco, aes(x = Climate_Re, fill = species)) +
 # Display the plot
 x11()
 print(p2)
+Sys.sleep(7)
 
-write.csv(matrix_full_eco, "data/matrix_full_eco", row.names = FALSE)
+top_eco <- matrix_full_eco %>%
+  count(W_Ecosystm, species) %>%
+  group_by(W_Ecosystm) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  arrange(desc(total)) %>%
+  slice_head(n = 20)
+
+#Distribution of occurences per ecosystem type
+p_top_eco <- ggplot(top_eco,
+                    aes(x = reorder(W_Ecosystm, total),
+                        y = n,
+                        fill = species)) +
+  geom_col(position = "dodge", color = "black", alpha = 0.8) +
+  coord_flip() +
+  labs(title = "Distribution of occurences per ecosystem type",
+       x = "Ecosystem type",
+       y = "Number of occurrences",
+       fill = "Species") +
+  theme_classic(base_size = 13)+
+    theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+
+x11()
+print(p_top_eco)
+Sys.sleep(7)

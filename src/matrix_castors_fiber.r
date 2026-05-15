@@ -1,18 +1,11 @@
-##But de ce fichier est de créer la matrice avec toute les données sur les espèces : 
-###############################################################################
-# FULLY COMMENTED SCRIPT
-# COMBINING GBIF + iNaturalist OCCURRENCES
-# WITH DATE FILTERING AND A MAP OF SWITZERLAND
-###############################################################################
+
+##The Goal of this script is to build a matrix with the occurence of Castor fiber in Switzerland with data from GBIF and INaturalist 
 
 # =========================
-# 1) PACKAGES
+# 1) Installation of packages 
 # =========================
 
-# Install if necessary:
-# install.packages(c("rgbif", "rnaturalearth", "ggplot2", "rinat",
-#                    "raster", "dplyr", "sf"))
-install.packages("rgbif")
+#install.packages("rgbif")
 library(rgbif)         # access to GBIF data
 library(rnaturalearth) # country maps
 library(ggplot2)       # graphics
@@ -25,14 +18,12 @@ library(sf)            # modern spatial objects
 sf_use_s2(FALSE)
 
 ###############################################################################
-# 2) USER PARAMETERS
+# 2) Parameters setting 
 ###############################################################################
 
 # Species of interest
 myspecies <- "Castor fiber"
 
-# Maximum number of GBIF records to download
-#gbif_limit <- 5000
 
 # Time filtering period
 date_start <- as.Date("2000-01-01")
@@ -45,7 +36,7 @@ ymin <- 46
 ymax <- 48
 
 ###############################################################################
-# 3) BASE MAP: SWITZERLAND
+# 3) Creation of the map of Switzerland 
 ###############################################################################
 
 # Download the outline of Switzerland
@@ -56,13 +47,19 @@ Switzerland <- ne_countries(
 )
 
 # Simple visualization of the map
-x11()
-ggplot(data = Switzerland) +
+p_switzerland <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  theme_classic()
+  labs(title = "Switzerland map",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_switzerland)
+Sys.sleep(7)
 
 ###############################################################################
-# 4) DOWNLOAD GBIF DATA
+# 4) Download of GBIF data for Castor fiber 
 ###############################################################################
 
 # Download occurrences with coordinates
@@ -88,42 +85,37 @@ gbif_switzerland <- gbif_occ %>%
 # Check number of records
 nrow(gbif_switzerland)
 
-# Quick base plot for checking
-x11()
-plot(
-  gbif_switzerland$decimalLongitude,
-  gbif_switzerland$decimalLatitude,
-  pch = 16,
-  col = "darkgreen",
-  xlab = "Longitude",
-  ylab = "Latitude",
-  main = "GBIF occurrences in Switzerland"
-)
+
 
 # Map showing GBIF occurrences only
-ggplot(data = Switzerland) +
+p_gbif_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = gbif_switzerland,
-    aes(x = decimalLongitude, y = decimalLatitude),
-    size = 3,
-    shape = 21,
-    fill = "darkgreen",
-    color = "black"
-  ) +
-  theme_classic()
+  geom_point(data = gbif_switzerland,
+             aes(x = decimalLongitude, y = decimalLatitude),
+             size = 3,
+             shape = 21,
+             fill = "darkgreen",
+             color = "black",
+             alpha = 0.75) +
+  labs(title = "GBIF occurrences of Castor fiber in Switzerland",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_gbif_map)
+Sys.sleep(7)
 
 ###############################################################################
-# 5) FORMAT GBIF DATA
+# 5) Format of GBIF data 
 ###############################################################################
 
 # Keep only the useful columns
-# eventDate may contain date + time; as.Date() keeps only the date
 data_gbif <- data.frame(
   species   = gbif_switzerland$species,
   latitude  = gbif_switzerland$decimalLatitude,
   longitude = gbif_switzerland$decimalLongitude,
-  date_obs  = as.Date(gbif_switzerland$eventDate),
+  date_obs  = as.Date(gbif_switzerland$eventDate),#as.Date to keep only the data and exclude the time
   source    = "gbif"
 )
 View(data_gbif)
@@ -133,11 +125,10 @@ head(data_gbif)
 str(data_gbif)
 
 ###############################################################################
-# 6) DOWNLOAD iNaturalist DATA
+# 6) Download of iNaturalist data for Castor fiber
 ###############################################################################
 
-# Query iNaturalist for the same species in Switzerland
-# place_id = "switzerland" usually works with rinat
+
 inat_raw <- get_inat_obs(
   query = myspecies,
   place_id = "switzerland"
@@ -148,20 +139,26 @@ head(inat_raw)
 names(inat_raw)
 
 # Map showing iNaturalist occurrences only
-ggplot(data = Switzerland) +
+p_inat_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = inat_raw,
-    aes(x = longitude, y = latitude),
-    size = 3,
-    shape = 21,
-    fill = "darkred",
-    color = "black"
-  ) +
-  theme_classic()
+  geom_point(data = inat_raw,
+             aes(x = longitude, y = latitude),
+             size = 3,
+             shape = 21,
+             fill = "darkred",
+             color = "black",
+             alpha = 0.75) +
+  labs(title = "iNaturalist occurrences of Castor fiber in Switzerland",
+       x = "Longitude",
+       y = "Latitude") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_inat_map)
+Sys.sleep(7)
 
 ###############################################################################
-# 7) FORMAT iNaturalist DATA
+# 7) Format iNaturalist data
 ###############################################################################
 
 # In most rinat versions the observation date is stored in observed_on
@@ -180,10 +177,10 @@ head(data_inat)
 str(data_inat)
 
 ###############################################################################
-# 8) MERGE THE TWO DATABASES
+# 8) Merge of the two databases 
 ###############################################################################
 
-# IMPORTANT:
+
 # Here we want to STACK GBIF and iNaturalist observations.
 # Therefore we use bind_rows() instead of merge().
 matrix_full <- bind_rows(data_gbif, data_inat)
@@ -211,20 +208,26 @@ table(matrix_full_date$source)
 # 10) MAP OF COMBINED DATA
 ###############################################################################
 
-ggplot(data = Switzerland) +
+p_combined_map <- ggplot(data = Switzerland) +
   geom_sf(fill = "grey95", color = "black") +
-  geom_point(
-    data = matrix_full_date,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 3,
-    shape = 21,
-    color = "black",
-    alpha = 0.8
-  ) +
-  theme_classic()
+  geom_point(data = matrix_full_date,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 2,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Combined occurrences of Castor fiber in Switzerland",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_combined_map)
+Sys.sleep(7)
 
 ###############################################################################
-# 11) DEFINE A SIMPLE SPATIAL EXTENT
+# 11) DEFINE A SIMPLE SPATIAL EXTENT --> Switzerland 
 ###############################################################################
 
 ################################################################################
@@ -242,15 +245,23 @@ ext_Switzerland_cut <- as(raster::extent(6, 11, 46, 48), "SpatialPolygons")
 Switzerland_crop <- st_crop(Switzerland, ext_Switzerland_cut)
 
 # Plot cropped map with occurrence points
-ggplot(data = Switzerland_crop) +
-  geom_sf() +
-  geom_point(
-    data = matrix_full,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 4,
-    shape = 23
-  ) +
-  theme_classic()
+p_crop_map <- ggplot(data = Switzerland_crop) +
+  geom_sf(fill = "grey95", color = "black") +
+  geom_point(data = matrix_full,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 2,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Occurrences of Castor fiber within the Swiss spatial extent",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_crop_map)
+Sys.sleep(7)
 
 ################################################################################
 ################################################################################
@@ -266,16 +277,23 @@ Switzerland_crop_sf <- st_as_sf(Switzerland_crop)
 cur_data <- matrix_full[as.matrix(st_intersects(data_gbif_sf, Switzerland_crop_sf)),]
 
 # Plot cropped Switzerland map with filtered points
+p_filtered_map <- ggplot(data = Switzerland_crop) +
+  geom_sf(fill = "grey95", color = "black") +
+  geom_point(data = cur_data,
+             aes(x = longitude, y = latitude, fill = source),
+             size = 2,
+             shape = 21,
+             color = "black",
+             alpha = 0.8) +
+  labs(title = "Filtered occurrences of Castor fiber in Switzerland",
+       x = "Longitude",
+       y = "Latitude",
+       fill = "Data source") +
+  theme_classic(base_size = 13)
+
 x11()
-ggplot(data = Switzerland_crop) +
-  geom_sf() +
-  geom_point(
-    data = cur_data,
-    aes(x = longitude, y = latitude, fill = source),
-    size = 4,
-    shape = 23
-  ) +
-  theme_classic()
+print(p_filtered_map)
+Sys.sleep(7)
 
 ###############################################################################
 # 14) OPTIONAL SAVE OF THE FINAL TABLE
@@ -287,3 +305,30 @@ write.csv(
   file = "Castor fiber.csv",
   row.names = FALSE
 )
+##Graphic showing the sources of the data 
+p_source <- ggplot(matrix_full_date, aes(x = source, fill = source)) +
+  geom_bar(color = "black", alpha = 0.8) +
+  labs(title = "Number of Castor fiber occurrences by data source",
+       x = "Data source",
+       y = "Number of occurrences") +
+  theme_classic(base_size = 13) +
+  theme(legend.position = "none")
+
+x11()
+print(p_source)
+Sys.sleep(7)
+
+##Graphic showing the temporal distribution of the occurences
+matrix_full_date$year_obs <- as.numeric(format(matrix_full_date$date_obs, "%Y"))
+
+p_time <- ggplot(matrix_full_date, aes(x = year_obs, fill = source)) +
+  geom_histogram(binwidth = 1, color = "black", alpha = 0.75) +
+  labs(title = "Temporal distribution of Castor fiber occurrences",
+       x = "Observation year",
+       y = "Number of occurrences",
+       fill = "Source") +
+  theme_classic(base_size = 13)
+
+x11()
+print(p_time)
+Sys.sleep(7)

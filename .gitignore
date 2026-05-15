@@ -1,0 +1,5 @@
+*.tif
+*.grd
+*.gri
+.Rhistory
+.RData

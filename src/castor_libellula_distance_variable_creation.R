@@ -1,5 +1,11 @@
-###My project part 2###
-#My question for this project was to understand if the presence of the beaver could influence the presence of Libellula depressa. 
+################################################################################################################################
+##Creation of the distance from beaver variable : 
+################################################################################################################################
+
+#The PCA made before showed that both species occur under similar environmental conditions in Swirtzerland. 
+#However, This does not indicate if the presence of beaver could favorise the presence of Libellula depressa. 
+#To answer this question, another variable has been added to the matrix : The calculated distance to each occurence point to the beaver. 
+#Thus, this will help to determine if Libellula depressa tends to colonise the habitat created or occupied by the beaver. 
 
 #Packages loading : 
 library(ggplot2)
@@ -11,202 +17,14 @@ library(rnaturalearth)
 
 sf_use_s2(FALSE)
 
-matrix_final=read.csv("data/matrix.final.csv")
-head(matrix_final)
-names(matrix_final)
 
 ################################################################################################################################
-## 1. Graphical determination of the clinatic niches for each species : 
+## 1. Création of a variable called "Distance to beaver"
 ################################################################################################################################
 
-#1.1 : Temperarure x annual precipitation 
-p_clim <- ggplot(matrix_final,
-aes(x = tmax_mean_c,
-    y = prec_mean_annual,
-    color = species)) +
+matrix_final <- read.csv("data/matrix.final.csv")
 
-geom_point(alpha = 0.3, size = 1) +
-
-geom_smooth(method = "loess",
-            se = TRUE,
-            linewidth = 1) +
-
-labs(title = "Climatic niche of the two species",
-     x = "Mean maximum temperature (°C)",
-     y = "Mean annual precipitation") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
-x11()
-print(p_clim)
-
-#1.2 : Temperature distribution 
-p_temp <- ggplot(matrix_final,
-aes(x = tmax_mean_c,
-    fill = species)) +
-
-geom_density(alpha = 0.45) +
-
-labs(title = "Temperature niche distribution",
-     x = "Mean maximum temperature (°C)",
-     y = "Density") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
-x11()
-print(p_temp)
-
-#1.3 : Precipitation distribution : 
-p_prec <- ggplot(matrix_final,
-aes(x = prec_mean_annual,
-    fill = species)) +
-
-geom_density(alpha = 0.45) +
-
-labs(title = "Precipitation niche distribution",
-     x = "Mean annual precipitation",
-     y = "Density") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"))
-
-x11()
-print(p_prec)
-
-#1.4 : altitude distribution : nul on voit même pas quelle altitude est mieux...
-p_elev <- ggplot(matrix_final,
-aes(x = species,
-    y = elevation,
-    color = species,
-    fill = species)) +
-
-geom_boxplot(
-  width = 0.22,
-  alpha = 0.25,
-  outlier.shape = NA
-) +
-
-geom_jitter(
-  width = 0.12,
-  alpha = 0.12,
-  size = 0.7
-) +
-
-stat_summary(
-  fun = mean,
-  geom = "point",
-  shape = 18,
-  size = 4,
-  color = "black"
-) +
-
-labs(
-  title = "Elevation associated with species occurrences",
-  x = "Species",
-  y = "Elevation (m)"
-) +
-
-theme_classic(base_size = 13) +
-
-theme(
-  plot.title = element_text(hjust = 0.5, face = "bold"),
-  legend.position = "none"
-)
-
-x11()
-print(p_elev)
-
-#1.5 Landcover preferences 
-p_landcover <- ggplot(matrix_final,
-aes(x = Landcover,
-    fill = species)) +
-
-geom_bar(position = "dodge") +
-
-labs(title = "Landcover categories associated with species",
-     x = "Landcover",
-     y = "Number of occurrences") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-      axis.text.x = element_text(angle = 45, hjust = 1))
-
-x11()
-print(p_landcover)
-
-#1.6 Ecosystem preferences : 
-p_ecosystem <- ggplot(matrix_final,
-aes(x = W_Ecosystm,
-    fill = species)) +
-
-geom_bar(position = "dodge") +
-
-labs(title = "Ecosystem types associated with species",
-     x = "Ecosystem type",
-     y = "Number of occurrences") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-      axis.text.x = element_text(angle = 55, hjust = 1))
-
-x11()
-print(p_ecosystem)
-
-#1.7 Altitude x NDVI : 
-p_ndvi_alt <- ggplot(matrix_final,
-aes(x = elevation,
-    y = NDVI,
-    color = species)) +
-
-geom_point(alpha = 0.3, size = 1) +
-
-geom_smooth(method = "loess",
-            se = TRUE,
-            linewidth = 1) +
-
-facet_wrap(~ species) +
-
-labs(title = "NDVI along the elevation gradient",
-     x = "Elevation (m)",
-     y = "Mean NDVI") +
-
-theme_classic(base_size = 13) +
-
-theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-      legend.position = "none")
-
-x11()
-print(p_ndvi_alt)
-
-#1.8 First interpretation : 
-#The analyses showed that the two species share many environmental conditions in Switzerland.
-
-#However, Libellula depressa seemed to live in a larger variety of environments than Castor fiber.
-
-#The dragonfly was found across a larger range of temperature, precipitation and elevation. 
-#One of the biggest difference is that Libellula depressa was still present at high elevation, even with a lower NDVi index
-
-#In contrast, Castor fiber was mainly found at lower elevation and in areas with high vegetation cover. It showed also that Beaver are far less present in moutain areas
-
-#Landcover analyses showed that Castor fiber was often associated with croplands and lowland areas, while Libellula depressa was also common in forests and grasslands.
-
-#These results are interesting for the main question of the project.
-#Even if the two species do not live in exactly the same habitats, they still overlap in many places.
-
-#Therefore, habitats created by Castor fiber, such as ponds and wetlands, could help create suitable conditions for Libellula depressa.
-
-################################################################################################################################
-## 2. Création of a variable called "Distance to beaver"
-################################################################################################################################
-
-#2.1 splitting of the two species : 
+#1.1 splitting of the two species : 
 castor_points <- filter(
   matrix_final,
   species == "Castor fiber"
@@ -221,9 +39,13 @@ View(castor_points)
 nrow(castor_points)
 nrow(libellula_points)
 
-#2.2 Conversion to spatial object : 
+#1.2 Conversion to spatial object : 
+castor_unique <- castor_points[
+  !duplicated(castor_points[, c("longitude", "latitude")]),
+]
+
 castor_sf <- st_as_sf(
-  castor_points,
+  castor_unique,
   coords = c("longitude", "latitude"),
   crs = 4326,
   remove = FALSE
@@ -236,7 +58,7 @@ libellula_sf <- st_as_sf(
   remove = FALSE
 )
 
-#2.3 Projection to swiss metrics 
+#1.3 Projection to swiss metrics 
 castor_sf_2056 <- st_transform(
   castor_sf,
   2056
@@ -247,7 +69,7 @@ libellula_sf_2056 <- st_transform(
   2056
 )
 
-#2.4 Find the nearest beaver for each libellula point 
+#1.4 Find the nearest beaver for each libellula point 
 nearest_castor_id <- st_nearest_feature(
   libellula_sf_2056,
   castor_sf_2056
@@ -258,7 +80,7 @@ nearest_castor <- castor_sf_2056[
 ]
 View(nearest_castor)
 
-#2.5 Distance computation : 
+#1.5 Distance computation : 
 distance_values <- st_distance(
   libellula_sf_2056,
   nearest_castor,
@@ -273,7 +95,7 @@ summary(
   libellula_points$distance_to_nearest_castor_m
 )
 
-#2.6 Adding the distance to the final matrix 
+#1.6 Adding the distance to the final matrix 
 castor_points$distance_to_nearest_castor_m <- 0
 
 matrix_final_castor_distance <- bind_rows(
@@ -339,7 +161,7 @@ p_map_distance <- ggplot() +
 x11()
 print(p_map_distance)
 
-#2.8 Histogram of density of nearest localisation
+#1.8 Histogram of density of nearest localisation
 libellula_points$distance_to_nearest_castor_km <-
   libellula_points$distance_to_nearest_castor_m / 1000
 
@@ -379,3 +201,6 @@ write.csv(
   "data/matrix_final_with_castor_distance.csv",
   row.names = FALSE
 )
+
+names(matrix_final_castor_distance)
+

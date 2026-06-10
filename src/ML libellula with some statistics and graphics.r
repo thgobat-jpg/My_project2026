@@ -1,18 +1,15 @@
 ###############################################################################
 # MACHINE LEARNING ANALYSIS
-# Goal: predict Libellula depressa presence using environmental variables
-# and distance to nearest Castor fiber occurrence.
+# Goal: predict Libellula depressa presence using environmental variables and distance to nearest Castor fiber occurrence.
 ###############################################################################
 ###############################################################################
 # MACHINE LEARNING ANALYSIS
 ###############################################################################
 
-# The goal of this analysis is to test whether the presence of
-# Libellula depressa can be predicted using environmental variables
+# The goal of this analysis is to test whether the presence of Libellula depressa can be predicted using environmental variables
 # and the distance to the nearest Castor fiber occurrence.
 #
-# Because GBIF and iNaturalist only provide presence data,
-# true absence data are not available.
+# Because GBIF and iNaturalist only provide presence data,true absence data are not available.
 #
 # Therefore, random background points are generated across Switzerland.
 # These points do not represent true absences,
@@ -25,8 +22,7 @@
 # using environmental variables and distance to Castor fiber.
 #
 # Finally, a Random Forest model is used to identify
-# which variables are the most important
-# for predicting Libellula depressa presence.
+#which variables are the most important for predicting Libellula depressa presence.
 ###############################################################################
 
 # =========================
@@ -49,17 +45,23 @@ sf_use_s2(FALSE)
 
 
 ###############################################################################
-# 2) LOAD FINAL MATRIX
+# 2) LOAD FINAL MATRIX WITH CASTOR DISTANCE
 ###############################################################################
 
-# This matrix contains the real occurrence points and the environmental variables
-# already extracted during the first part of the project.
+# This matrix contains the real species occurrences, environmental variables,
+# and the distance to the nearest Castor fiber occurrence.
 
-matrix_final <- read.csv("data/matrix.final.csv")
+matrix_final <- read.csv("data/matrix_final_with_castor_distance.csv")
 
 head(matrix_final)
 names(matrix_final)
 table(matrix_final$species)
+
+# If the distance is only in meters, we create the distance in kilometers.
+if(!"distance_to_nearest_castor_km" %in% names(matrix_final)) {
+  matrix_final$distance_to_nearest_castor_km <-
+    matrix_final$distance_to_nearest_castor_m / 1000
+}
 
 
 ###############################################################################
@@ -75,6 +77,7 @@ libellula_points <- filter(matrix_final, species == "Libellula depressa")
 nrow(castor_points)
 nrow(libellula_points)
 
+names(matrix_final)
 
 ###############################################################################
 # 4) LOAD SWITZERLAND MAP
@@ -159,21 +162,16 @@ Sys.sleep(7)
 
 
 ###############################################################################
-# 7) DISTANCE TO NEAREST CASTOR FOR LIBELLULA AND BACKGROUND POINTS
+# 7) DISTANCE TO NEAREST CASTOR FOR BACKGROUND POINTS
 ###############################################################################
 
-# Distances must be calculated in meters.
-# Therefore, all points are projected to the Swiss coordinate system EPSG:2056.
+# The distance to Castor fiber is already present for the real Libellula depressa occurrences because it was created in a previous script.
+#
+# However, random background points were created inside this script.
+# Therefore, we still need to calculate the distance from each random point to the nearest Castor fiber occurrence.
 
 castor_sf <- st_as_sf(
   castor_points,
-  coords = c("longitude", "latitude"),
-  crs = 4326,
-  remove = FALSE
-)
-
-libellula_sf <- st_as_sf(
-  libellula_points,
   coords = c("longitude", "latitude"),
   crs = 4326,
   remove = FALSE
@@ -187,20 +185,16 @@ pseudo_sf <- st_as_sf(
 )
 
 castor_sf_2056 <- st_transform(castor_sf, 2056)
-libellula_sf_2056 <- st_transform(libellula_sf, 2056)
 pseudo_sf_2056 <- st_transform(pseudo_sf, 2056)
 
-nearest_castor_lib <- st_nearest_feature(libellula_sf_2056, castor_sf_2056)
-nearest_castor_pseudo <- st_nearest_feature(pseudo_sf_2056, castor_sf_2056)
-
-nearest_castor_lib_sf <- castor_sf_2056[nearest_castor_lib, ]
-nearest_castor_pseudo_sf <- castor_sf_2056[nearest_castor_pseudo, ]
-
-distance_lib <- st_distance(
-  libellula_sf_2056,
-  nearest_castor_lib_sf,
-  by_element = TRUE
+nearest_castor_pseudo <- st_nearest_feature(
+  pseudo_sf_2056,
+  castor_sf_2056
 )
+
+nearest_castor_pseudo_sf <- castor_sf_2056[
+  nearest_castor_pseudo,
+]
 
 distance_pseudo <- st_distance(
   pseudo_sf_2056,
@@ -208,11 +202,10 @@ distance_pseudo <- st_distance(
   by_element = TRUE
 )
 
-libellula_points$distance_to_nearest_castor_m <- as.numeric(distance_lib)
 pseudo_points$distance_to_nearest_castor_m <- as.numeric(distance_pseudo)
 
-libellula_points$distance_to_nearest_castor_km <- libellula_points$distance_to_nearest_castor_m / 1000
-pseudo_points$distance_to_nearest_castor_km <- pseudo_points$distance_to_nearest_castor_m / 1000
+pseudo_points$distance_to_nearest_castor_km <-
+  pseudo_points$distance_to_nearest_castor_m / 1000
 
 summary(libellula_points$distance_to_nearest_castor_km)
 summary(pseudo_points$distance_to_nearest_castor_km)
@@ -445,7 +438,7 @@ t_mat <- as.matrix(t_r[, names(t_r) != "time"])
 t_mean_k <- colMeans(t_mat, na.rm = TRUE)
 t_mean_c <- t_mean_k - 273.15
 
-pseudo_points$tmax_mean_c <- as.numeric(t_mean_c)
+pseudo_points$t_mean_c <- as.numeric(t_mean_c)
 
 prec_r <- getChelsa(
   var = "pr",
@@ -462,14 +455,14 @@ prec_mean <- colMeans(prec_mat, na.rm = TRUE)
 
 pseudo_points$prec_mean_annual <- as.numeric(prec_mean)
 
-summary(pseudo_points$tmax_mean_c)
+summary(pseudo_points$t_mean_c)
 summary(pseudo_points$prec_mean_annual)
 
 climate_control <- rbind(
-  data.frame(variable = libellula_points$tmax_mean_c,
+  data.frame(variable = libellula_points$t_mean_c,
              point_type = "Libellula",
              climate = "Temperature"),
-  data.frame(variable = pseudo_points$tmax_mean_c,
+  data.frame(variable = pseudo_points$t_mean_c,
              point_type = "Random points",
              climate = "Temperature"),
   data.frame(variable = libellula_points$prec_mean_annual,
@@ -514,7 +507,7 @@ libellula_ml <- data.frame(
   distance_to_nearest_castor_km = libellula_points$distance_to_nearest_castor_km,
   elevation = libellula_points$elevation,
   NDVI = libellula_points$NDVI,
-  tmax_mean_c = libellula_points$tmax_mean_c,
+  t_mean_c = libellula_points$t_mean_c,
   prec_mean_annual = libellula_points$prec_mean_annual,
   eco_values = libellula_points$eco_values
 )
@@ -524,7 +517,7 @@ pseudo_ml <- data.frame(
   distance_to_nearest_castor_km = pseudo_points$distance_to_nearest_castor_km,
   elevation = pseudo_points$elevation,
   NDVI = pseudo_points$NDVI,
-  tmax_mean_c = pseudo_points$tmax_mean_c,
+  t_mean_c = pseudo_points$t_mean_c,
   prec_mean_annual = pseudo_points$prec_mean_annual,
   eco_values = pseudo_points$eco_values
 )
@@ -538,7 +531,7 @@ ml_df$presence_class <- as.factor(ml_df$presence_class)
 head(ml_df)
 table(ml_df$presence_class)
 
-
+names(libellula_points)
 ###############################################################################
 # 15) VISUAL CONTROL OF FINAL ML DATASET
 ###############################################################################
@@ -645,7 +638,6 @@ confusionMatrix(
   reference = test_df$presence_class
 )
 
-
 ###############################################################################
 # 20) VARIABLE IMPORTANCE
 ###############################################################################
@@ -711,7 +703,7 @@ distance_curve <- data.frame(
 
 distance_curve$elevation <- mean(ml_df$elevation, na.rm = TRUE)
 distance_curve$NDVI <- mean(ml_df$NDVI, na.rm = TRUE)
-distance_curve$tmax_mean_c <- mean(ml_df$tmax_mean_c, na.rm = TRUE)
+distance_curve$t_mean_c <- mean(ml_df$t_mean_c, na.rm = TRUE)
 distance_curve$prec_mean_annual <- mean(ml_df$prec_mean_annual, na.rm = TRUE)
 distance_curve$eco_values <- round(mean(ml_df$eco_values, na.rm = TRUE))
 
@@ -751,15 +743,192 @@ write.csv(
 )
 
 ###############################################################################
-# 24) Comments on the model 
+# 24) SIMPLE STATISTICAL ANALYSES
+# Goal: test whether Libellula depressa occurrences are closer to Castor fiber
+# than random background points.
 ###############################################################################
 
-#The Random Forest model gave very strong results for predicting Libellula depressa presence. The model used 500 decision trees and produced a very low training error rate of only 0.37%. 
-#In the test dataset, all 1348 background points were correctly classified and 1392 out of 1404 Libellula occurrences were correctly predicted. Only 12 classification errors were observed, leading to an overall accuracy of 99.56%. 
-#These results show that the environmental variables used in the model strongly differentiate suitable habitats for Libellula depressa from random locations in Switzerland.
 
-#The variable importance analysis showed that temperature was the most important factor explaining Libellula depressa presence. However, distance to the nearest Castor fiber occurrence was also highly important, even more important than elevation, NDVI or precipitation. 
-#The probability curve also showed that predicted probability of Libellula presence was generally higher close to Castor fiber occurrences and decreased with increasing distance. This suggests that habitats associated with beaver presence may favour Libellula depressa occurrence.
+###############################################################################
+#  LOAD MACHINE LEARNING DATASET
+###############################################################################
 
-#However, some limitations must be considered. The model compares real Libellula occurrences with randomly generated background points across Switzerland. Some of these random points are located in clearly unsuitable habitats such as high mountains or very cold environments, which probably increases model performance. 
-#Therefore, the very high accuracy should be interpreted carefully. In addition, the observed relationship between Libellula depressa and Castor fiber does not necessarily indicate a direct ecological interaction, as both species may simply share similar environmental preferences.
+ml_df <- read.csv("data/libellula_ml_dataset_with_background.csv")
+
+head(ml_df)
+names(ml_df)
+table(ml_df$presence_class)
+
+###############################################################################
+# SIMPLE STATISTICAL ANALYSIS
+###############################################################################
+
+# Here I separate the two groups to make the code easier to understand.
+
+libellula_distance <- ml_df[ml_df$presence_class == "libellula", ]
+
+background_distance <- ml_df[ml_df$presence_class == "background", ]
+
+
+# Median distance to Castor fiber for Libellula points
+
+median(
+  libellula_distance$distance_to_nearest_castor_km,
+  na.rm = TRUE
+)
+
+
+# Median distance to Castor fiber for random background points
+
+median(
+  background_distance$distance_to_nearest_castor_km,
+  na.rm = TRUE
+)
+
+
+# Wilcoxon test comparing the two distance distributions
+
+wilcox_distance <- wilcox.test(
+  libellula_distance$distance_to_nearest_castor_km,
+  background_distance$distance_to_nearest_castor_km
+)
+
+wilcox_distance
+
+summary(libellula_distance$distance_to_nearest_castor_km)
+table(
+  libellula_distance$distance_to_nearest_castor_km == 0
+)
+
+###############################################################################
+# CORRELATION HEATMAP
+###############################################################################
+
+# This heatmap shows correlations between the variables used in the model.
+# It helps to see if some variables are strongly related to each other.
+
+cor_df <- ml_df[
+  ,
+  c("distance_to_nearest_castor_km",
+    "elevation",
+    "NDVI",
+    "t_mean_c",
+    "prec_mean_annual")
+]
+
+cor_df <- na.omit(cor_df)
+
+cor_matrix <- cor(
+  cor_df,
+  method = "spearman"
+)
+
+print(cor_matrix)
+
+cor_table <- as.data.frame(
+  as.table(cor_matrix)
+)
+
+names(cor_table) <- c(
+  "Variable_1",
+  "Variable_2",
+  "Correlation"
+)
+
+p_cor_heatmap <- ggplot(
+  cor_table,
+  aes(x = Variable_1,
+      y = Variable_2,
+      fill = Correlation)
+) +
+  geom_tile(color = "white") +
+  geom_text(
+    aes(label = round(Correlation, 2)),
+    size = 3
+  ) +
+  scale_fill_viridis_c(
+    option = "C",
+    limits = c(-1, 1)
+  ) +
+  labs(title = "Correlation between model variables",
+       x = "",
+       y = "",
+       fill = "Spearman\ncorrelation") +
+  theme_classic(base_size = 12) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1))
+
+x11()
+print(p_cor_heatmap)
+Sys.sleep(7)
+
+# The Wilcoxon test showed a significant difference between Libellula depressa observations and the random background points (W = 4353899, p < 2.2e-16). 
+# The median distance to the nearest Castor fiber occurrence was 0 km for Libellula depressa and 6.76 km for background points, suggesting that dragonflies are generally observed  close to beavers. 
+
+# The correlation analysis showed that distance to the nearest Castor fiber was positively correlated with elevation (r = 0.64) and precipitation (r = 0.68), and negatively correlated with temperature (r = -0.59). 
+# As expected, Temperature and elevation have a strong negative correlation of almost one (-0.96)
+
+###############################################################################
+# COORDINATE OVERLAP BETWEEN BOTH SPECIES
+###############################################################################
+
+castor_coord <- unique(castor_points[, c("longitude", "latitude")])
+libellula_coord <- unique(libellula_points[, c("longitude", "latitude")])
+
+shared_coord <- merge(castor_coord, libellula_coord)
+
+coord_overlap <- data.frame(
+  category = c("Shared coordinates", "Castor only", "Libellula only"),
+  count = c(
+    nrow(shared_coord),
+    nrow(castor_coord) - nrow(shared_coord),
+    nrow(libellula_coord) - nrow(shared_coord)
+  )
+)
+
+print(coord_overlap)
+
+p_coord_overlap <- ggplot(
+  coord_overlap,
+  aes(x = category, y = count, fill = category)
+) +
+  geom_col(color = "black", alpha = 0.8) +
+  geom_text(aes(label = count), vjust = -0.4, size = 4) +
+  scale_fill_manual(values = c(
+    "Shared coordinates" = "darkolivegreen3",
+    "Castor only" = "#009ACD",
+    "Libellula only" = "#CD2626"
+  )) +
+  labs(title = "Unique coordinates shared by both species",
+       x = "",
+       y = "Number of unique coordinates") +
+  theme_classic(base_size = 13) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        legend.position = "none")
+
+x11()
+print(p_coord_overlap)
+Sys.sleep(7)
+
+
+###############################################################################
+# 25) Conclusion : 
+###############################################################################
+
+#The Random Forest model gave good results for predicting Libellula depressa presence. The model used 500 decision trees and produced an overall classification accuracy of 80.4%.
+#In the test dataset, 216 out of 267 background points were correctly classified and 223 out of 279 Libellula occurrences were correctly predicted. A total of 107 classification errors were observed.
+#These results show that the environmental variables used in the model can differentiate Libellula depressa occurrences from random locations in Switzerland.
+
+#The variable importance analysis showed that distance to the nearest Castor fiber occurrence was the most important factor explaining Libellula depressa presence. Temperature, elevation and precipitation were also important variables, while NDVI and ecosystem type had a smaller contribution.
+#The Wilcoxon test also showed that Libellula depressa occurrences were significantly closer to Castor fiber occurrences than random background points. The median distance was 2.5 km for Libellula depressa compared to 6.3 km for random locations.
+
+#However, some limitations must be considered. The model compares real Libellula occurrences with randomly generated background points across Switzerland. Some of these random points are located in clearly unsuitable habitats such as high mountains or very cold environments, which probably increases model performance.
+#Therefore, the model accuracy should be interpreted carefully.
+
+#Another limitation comes from the occurrence data. Although duplicated coordinates were removed before the analyses, many unique coordinates were still shared by both species. A total of 302 coordinates were common to Castor fiber and Libellula depressa.
+#Therefore, the relationship between Libellula depressa and Castor fiber may partly result from both species being recorded in similar habitats rather than from a direct ecological relationship.
+
+#Overall, the results suggest that Libellula depressa and Castor fiber are often found in similar environments and that Libellula depressa occurrences tend to be located closer to Castor fiber occurrences than expected by chance.
+#However, these results do not prove that beavers directly influence the presence of the dragonfly.
+
+
